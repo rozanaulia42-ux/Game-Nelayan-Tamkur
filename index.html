@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Nelayan Tamkur (Tambah Kurang)</title>
+    <style>
+        /* CSS VARIABLES & RESET */
+        :root {
+            --primary: #00a8ff;
+            --secondary: #fbc531;
+            --correct: #4cd137;
+            --wrong: #e84118;
+            --text: #2f3640;
+            --bg-sky: linear-gradient(180deg, #87CEEB 0%, #E0F6FF 100%);
+            --bg-sea: linear-gradient(180deg, #0097e6 0%, #00a8ff 50%, #0082c8 100%);
+            --font: 'Comic Sans MS', 'Chalkboard SE', 'Fredoka One', 'Varela Round', sans-serif;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+        body {
+            font-family: var(--font);
+            background: var(--bg-sky);
+            color: var(--text);
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+            touch-action: manipulation;
+        }
+
+        /* CANVAS OVERLAY (Rain, Particles) */
+        #fx-canvas {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 100;
+        }
+
+        /* GLOBAL UI ELEMENTS */
+        .top-controls {
+            position: fixed; top: 10px; right: 10px; z-index: 101;
+            display: flex; gap: 10px;
+        }
+        .icon-btn {
+            background: white; border: 3px solid #dcdde1; border-radius: 50%;
+            width: 50px; height: 50px; font-size: 24px; cursor: pointer;
+            box-shadow: 0 4px 0 #dcdde1; transition: all 0.1s;
+            display: flex; justify-content: center; align-items: center;
+        }
+        .icon-btn:active { transform: translateY(4px); box-shadow: 0 0 0 #dcdde1; }
+
+        /* ENVIRONMENT ANIMATIONS */
+        .environment { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
+        .clouds { position: absolute; width: 200%; display: flex; justify-content: space-around; animation: cloudMove 60s linear infinite; top: 10%; font-size: 4rem; opacity: 0.8;}
+        .birds { position: absolute; width: 150%; display: flex; justify-content: space-around; animation: cloudMove 40s linear infinite reverse; top: 20%; font-size: 2rem;}
+        .sea-bg { position: absolute; bottom: 0; width: 100%; height: 45%; background: var(--bg-sea); z-index: 2;}
+        .waves { position: absolute; top: -20px; width: 200%; height: 40px; background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 1000 40" xmlns="http://www.w3.org/2000/svg"><path d="M0 40 Q 250 0 500 40 T 1000 40 L 1000 40 L 0 40 Z" fill="%230097e6"/></svg>') repeat-x; animation: waveMove 5s linear infinite; }
+        .waves2 { top: -10px; opacity: 0.6; animation: waveMove 7s linear infinite reverse; background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 1000 40" xmlns="http://www.w3.org/2000/svg"><path d="M0 40 Q 250 0 500 40 T 1000 40 L 1000 40 L 0 40 Z" fill="%2300a8ff"/></svg>') repeat-x; }
+
+        @keyframes waveMove { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+        @keyframes cloudMove { 0% { transform: translateX(-50%); } 100% { transform: translateX(0); } }
+        @keyframes bob { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-5px) rotate(2deg); } }
+
+        /* SCREENS */
+        .screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            transition: opacity 0.5s, transform 0.5s; z-index: 10;
+        }
+        .hidden { opacity: 0; pointer-events: none; transform: scale(0.9); display: none !important; }
+        .active-screen { opacity: 1; transform: scale(1); display: flex !important; }
+
+        /* HOME SCREEN */
+        #home-screen { z-index: 20; text-align: center; }
+        .title-container { background: rgba(255,255,255,0.8); padding: 20px 40px; border-radius: 30px; border: 5px solid white; box-shadow: 0 10px 20px rgba(0,0,0,0.1); margin-bottom: 30px; animation: bob 3s infinite ease-in-out; }
+        h1 { font-size: 3.5rem; color: var(--primary); text-shadow: 2px 2px 0 #fff, -2px -2px 0 #fff, 2px -2px 0 #fff, -2px 2px 0 #fff, 0 4px 0 #0082c8; margin-bottom: 10px; }
+        h2 { font-size: 1.5rem; color: #ff9f43; margin-bottom: 5px; }
+        p.creator { font-size: 1rem; color: #7f8fa6; }
+        
+        .menu-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; width: 90%; max-width: 600px; }
+        .menu-btn {
+            padding: 15px 20px; font-size: 1.2rem; font-family: var(--font); font-weight: bold;
+            border: none; border-radius: 15px; cursor: pointer; color: white;
+            box-shadow: 0 6px 0 rgba(0,0,0,0.2); transition: all 0.1s;
+        }
+        .menu-btn:active { transform: translateY(6px); box-shadow: 0 0 0 rgba(0,0,0,0.2); }
+        .btn-solo { background-color: var(--correct); }
+        .btn-duel { background-color: var(--secondary); color: var(--text); }
+        .btn-squad { background-color: var(--primary); }
+        .btn-util { background-color: #95a5a6; grid-column: span 1; }
+
+        /* GAME LAYOUTS */
+        #game-screen { background: transparent; padding: 10px; width: 100%; height: 100%; }
+        .game-container { display: flex; width: 100%; height: 100%; gap: 10px; }
+        
+        /* Solo */
+        .layout-solo .player-board { width: 100%; height: 100%; border-radius: 20px; }
+        /* Duel */
+        .layout-duel { flex-direction: row; }
+        .layout-duel .player-board { width: 50%; height: 100%; border-radius: 20px; }
+        /* Squad */
+        .layout-squad { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 10px; width: 100%; height: 100%; }
+        .layout-squad .player-board { width: 100%; height: 100%; border-radius: 15px; font-size: 0.8rem; }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) and (orientation: portrait) {
+            .layout-duel { flex-direction: column; }
+            .layout-duel .player-board { width: 100%; height: 50%; }
+            .menu-grid { grid-template-columns: 1fr; }
+            .btn-util { grid-column: span 1; }
+            h1 { font-size: 2.5rem; }
+        }
+
+        /* PLAYER BOARD UI */
+        .player-board {
+            background: rgba(255, 255, 255, 0.9); border: 5px solid white; box-shadow: inset 0 0 20px rgba(0,168,255,0.2), 0 5px 15px rgba(0,0,0,0.1);
+            position: relative; display: flex; flex-direction: column; overflow: hidden;
+        }
+        .board-header { display: flex; justify-content: space-between; padding: 10px 15px; background: rgba(0,0,0,0.05); border-bottom: 2px solid rgba(0,0,0,0.1); align-items: center;}
+        .badge { font-weight: bold; padding: 5px 10px; border-radius: 10px; color: white; }
+        .p1-color { background: #ff4757; } .p2-color { background: #1e90ff; }
+        .p3-color { background: #2ed573; } .p4-color { background: #ffa502; }
+        
+        .stats-area { display: flex; gap: 15px; font-weight: bold; font-size: 1.1rem; }
+        .score-box { color: #e1b12c; }
+        .timer-box { color: var(--wrong); }
+        .combo-box { color: var(--primary); font-size: 0.9rem; opacity: 0; transition: opacity 0.3s;}
+        .combo-active { opacity: 1; animation: pulse 0.5s infinite alternate; }
+
+        @keyframes pulse { from { transform: scale(1); } to { transform: scale(1.1); } }
+
+        .question-area { flex: 1; display: flex; justify-content: center; align-items: center; min-height: 80px;}
+        .question-text { font-size: 3rem; font-weight: bold; background: white; padding: 10px 30px; border-radius: 20px; border: 4px dashed var(--primary); box-shadow: 0 5px 0 rgba(0,0,0,0.1); }
+
+        .sea-area { flex: 2; position: relative; background: var(--bg-sea); border-radius: 0 0 15px 15px; overflow: hidden; }
+        .sea-area .waves { top: 0; height: 20px; }
+        
+        /* Characters & Objects */
+        .boat-container { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); text-align: center; animation: bob 2s infinite ease-in-out; z-index: 5;}
+        .fisherman { font-size: 3rem; line-height: 1; }
+        .boat { font-size: 4rem; line-height: 0.5; margin-top: -10px; }
+        
+        .fish-grid { position: absolute; bottom: 10px; width: 100%; display: flex; justify-content: space-around; padding: 0 10px; z-index: 6;}
+        .fish-btn {
+            background: none; border: none; cursor: pointer; outline: none; position: relative;
+            transition: transform 0.2s; animation: bob 3s infinite ease-in-out; animation-delay: calc(var(--delay) * 1s);
+        }
+        .fish-btn:hover { transform: scale(1.1); }
+        .fish-icon { font-size: 3.5rem; filter: drop-shadow(0 4px 0 rgba(0,0,0,0.2)); }
+        .fish-number {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 1.5rem; font-weight: bold; color: white; text-shadow: 1px 1px 2px black;
+            pointer-events: none;
+        }
+
+        /* Fishing Line Animation */
+        .fishing-line { position: absolute; background: white; transform-origin: top left; z-index: 4; transition: width 0.3s linear; width: 0; height: 2px; }
+
+        /* Modals / Popups */
+        .popup-text { position: absolute; font-size: 2rem; font-weight: bold; pointer-events: none; opacity: 0; z-index: 10; text-shadow: 2px 2px 0 white, -2px -2px 0 white, 2px -2px 0 white, -2px 2px 0 white; }
+        .anim-pop-up { animation: popUp 1.5s forwards; }
+        @keyframes popUp { 0% { opacity: 0; transform: translateY(20px) scale(0.5); } 20% { opacity: 1; transform: translateY(0) scale(1.2); } 80% { opacity: 1; transform: translateY(-30px) scale(1); } 100% { opacity: 0; transform: translateY(-50px) scale(0.8); } }
+
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: none; justify-content: center; align-items: center; z-index: 200; }
+        .modal-content { background: white; padding: 30px; border-radius: 20px; text-align: center; max-width: 500px; width: 90%; border: 5px solid var(--primary); }
+        .modal-close { background: var(--wrong); color: white; border: none; padding: 10px 20px; font-size: 1.2rem; border-radius: 10px; cursor: pointer; margin-top: 20px; box-shadow: 0 4px 0 #c23616;}
+        .modal-close:active { transform: translateY(4px); box-shadow: 0 0 0;}
+        
+        .btn-home { position: absolute; top: 10px; left: 10px; z-index: 101; background: var(--secondary); color: var(--text); border: 3px solid white;}
+
+        /* Adjustments for smaller layouts (Squad) */
+        .layout-squad .question-text { font-size: 1.8rem; padding: 5px 15px; border-width: 2px;}
+        .layout-squad .fish-icon { font-size: 2.2rem; }
+        .layout-squad .fish-number { font-size: 1rem; }
+        .layout-squad .fisherman { font-size: 2rem; }
+        .layout-squad .boat { font-size: 2.5rem; }
+        .layout-squad .stats-area { font-size: 0.9rem; flex-direction: column; gap: 2px;}
+    </style>
+</head>
+<body>
+
+    <!-- Environment Background Elements -->
+    <div class="environment">
+        <div class="clouds">☁️ ⛅ ☁️ ☁️ ⛅</div>
+        <div class="birds">🕊️ &nbsp; &nbsp; &nbsp; 🕊️ 🕊️ &nbsp; &nbsp; 🕊️</div>
+        <div class="sea-bg"></div>
+    </div>
+
+    <!-- Canvas for Particles (Rain, Splash, Stars) -->
+    <canvas id="fx-canvas"></canvas>
+
+    <!-- Global Controls -->
+    <div class="top-controls">
+        <button class="icon-btn" id="btn-audio" onclick="toggleAudio()">🔇</button>
+        <button class="icon-btn" id="btn-fs" onclick="toggleFullScreen()">⛶</button>
+    </div>
+    <button class="icon-btn btn-home hidden" id="btn-back-home" onclick="goHome()">🏠</button>
+
+    <!-- HOME SCREEN -->
+    <div id="home-screen" class="screen active-screen">
+        <div class="title-container">
+            <h2>Game Edukasi Matematika</h2>
+            <h1>🎣 NELAYAN TAMKUR</h1>
+            <h2>Tambah & Kurang Jadi Mudah</h2>
+            <p class="creator">Dibuat oleh: Roza Naulia Rosdianti</p>
+            <p style="margin-top:10px; font-style:italic;">"Yuk bantu nelayan menangkap ikan jawaban yang benar!"</p>
+        </div>
+        <div class="menu-grid">
+            <button class="menu-btn btn-solo" onclick="startGame('solo')">🟢 SOLO MODE</button>
+            <button class="menu-btn btn-duel" onclick="startGame('duel')">🟡 DUEL MODE</button>
+            <button class="menu-btn btn-squad" onclick="startGame('squad')">🔵 SQUAD MODE</button>
+            <button class="menu-btn btn-util" onclick="showModal('tutorial')">📖 Petunjuk</button>
+            <button class="menu-btn btn-util" onclick="showModal('settings')">⚙ Pengaturan</button>
+        </div>
+    </div>
+
+    <!-- GAME SCREEN -->
+    <div id="game-screen" class="screen hidden">
+        <div id="game-container" class="game-container">
+            <!-- Player boards injected via JS -->
+        </div>
+    </div>
+
+    <!-- MODALS -->
+    <div id="modal-tutorial" class="modal-overlay">
+        <div class="modal-content">
+            <h2 style="color:var(--primary); margin-bottom: 15px;">📖 Petunjuk Bermain</h2>
+            <div style="text-align: left; font-size: 1.1rem; line-height: 1.5;">
+                <p>1. Lihat <b>Soal Matematika</b> (Tambah/Kurang) di tengah layar.</p>
+                <p>2. Cari <b>Ikan</b> yang membawa angka jawaban yang benar.</p>
+                <p>3. <b>Klik/Sentuh</b> ikan tersebut untuk melempar kail.</p>
+                <p>4. Jawab benar: Skor +10. Jawab salah: Skor 0 (Kail patah).</p>
+                <p>5. Jawab 3x berturut-turut benar dapat <b>Combo +20</b>.</p>
+                <p>6. Waktu tiap soal <b>20 detik</b>. Berpikir cepat!</p>
+            </div>
+            <button class="modal-close" onclick="closeModal('tutorial')">Paham!</button>
+        </div>
+    </div>
+
+    <div id="modal-settings" class="modal-overlay">
+        <div class="modal-content">
+            <h2 style="color:var(--primary); margin-bottom: 15px;">⚙ Pengaturan Level</h2>
+            <div style="display:flex; justify-content:space-around; margin: 20px 0;">
+                <label><input type="radio" name="level" value="1" checked> Level 1 (Mudah)</label>
+                <label><input type="radio" name="level" value="2"> Level 2 (Sedang)</label>
+                <label><input type="radio" name="level" value="3"> Level 3 (Sulit)</label>
+            </div>
+            <button class="modal-close" onclick="closeModal('settings')">Simpan</button>
+        </div>
+    </div>
+
+    <script>
+        // --- SYSTEM & UTILS ---
+        const $ = id => document.getElementById(id);
+        let gameMode = 'solo';
+        let players = [];
+        let globalLevel = 1;
+
+        // Settings Listener
+        document.querySelectorAll('input[name="level"]').forEach(radio => {
+            radio.addEventListener('change', (e) => { globalLevel = parseInt(e.target.value); });
+        });
+
+        // Modals
+        function showModal(id) { $(`modal-${id}`).style.display = 'flex'; playSound('pop'); }
+        function closeModal(id) { $(`modal-${id}`).style.display = 'none'; playSound('pop'); }
+
+        // Fullscreen
+        function toggleFullScreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => console.log(err));
+            } else {
+                if (document.exitFullscreen) { document.exitFullscreen(); }
+            }
+        }
+
+        // --- AUDIO SYNTHESIZER (No External Files) ---
+        let audioCtx;
+        let isAudioEnabled = false;
+        let bgmOsc;
+
+        function initAudio() {
+            if (!audioCtx) {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                audioCtx = new AudioContext();
+            }
+            if(audioCtx.state === 'suspended') audioCtx.resume();
+        }
+
+        function toggleAudio() {
+            initAudio();
+            isAudioEnabled = !isAudioEnabled;
+            $('btn-audio').innerText = isAudioEnabled ? '🔊' : '🔇';
+            if(isAudioEnabled) playBGM(); else stopBGM();
+        }
+
+        function playTone(freq, type, duration, vol=0.1) {
+            if(!isAudioEnabled || !audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type; osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(); osc.stop(audioCtx.currentTime + duration);
+        }
+
+        function playNoise(duration, vol=0.2) {
+            if(!isAudioEnabled || !audioCtx) return;
+            const bufferSize = audioCtx.sampleRate * duration;
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+            const noise = audioCtx.createBufferSource();
+            noise.buffer = buffer;
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'lowpass'; filter.frequency.value = 1000;
+            const gain = audioCtx.createGain();
+            gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+            noise.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination);
+            noise.start();
+        }
+
+        function playSound(type) {
+            switch(type) {
+                case 'pop': playTone(400, 'sine', 0.1); break;
+                case 'throw': playTone(200, 'triangle', 0.2, 0.05); setTimeout(()=>playTone(300, 'triangle', 0.2, 0.05), 100); break;
+                case 'correct': playTone(600, 'sine', 0.1); setTimeout(()=>playTone(800, 'sine', 0.3), 100); break;
+                case 'wrong': playTone(200, 'sawtooth', 0.3); setTimeout(()=>playTone(150, 'sawtooth', 0.3), 150); break;
+                case 'splash': playNoise(0.3); break;
+                case 'crack': playTone(100, 'square', 0.1, 0.3); playNoise(0.1, 0.5); break;
+            }
+        }
+
+        // Simple generated BGM (Arpeggio)
+        let bgmInterval;
+        const notes = [261.63, 329.63, 392.00, 523.25, 392.00, 329.63]; // C E G C G E
+        let noteIdx = 0;
+        function playBGM() {
+            if(bgmInterval) clearInterval(bgmInterval);
+            bgmInterval = setInterval(() => {
+                if(!isAudioEnabled) return;
+                playTone(notes[noteIdx], 'sine', 0.2, 0.02);
+                noteIdx = (noteIdx + 1) % notes.length;
+            }, 500);
+        }
+        function stopBGM() { clearInterval(bgmInterval); }
+
+        // --- CANVAS PARTICLE SYSTEM ---
+        const canvas = $('fx-canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+        
+        function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        class Particle {
+            constructor(x, y, type) {
+                this.x = x; this.y = y; this.type = type;
+                this.life = 1; this.decay = Math.random() * 0.02 + 0.02;
+                
+                if (type === 'rain') {
+                    this.vx = Math.random() * 0.5 - 0.25; this.vy = Math.random() * 5 + 5;
+                    this.size = Math.random() * 2 + 1; this.decay = 0; // handled by screen bounds
+                } else if (type === 'star') {
+                    this.vx = (Math.random() - 0.5) * 8; this.vy = (Math.random() - 0.5) * 8;
+                    this.size = Math.random() * 15 + 5; this.rot = Math.random() * Math.PI;
+                    this.rotSpeed = (Math.random() - 0.5) * 0.2;
+                } else if (type === 'splash') {
+                    this.vx = (Math.random() - 0.5) * 6; this.vy = Math.random() * -5 - 2;
+                    this.size = Math.random() * 5 + 2; this.gravity = 0.2;
+                } else if (type === 'wood') {
+                    this.vx = (Math.random() - 0.5) * 10; this.vy = Math.random() * -5 - 2;
+                    this.size = Math.random() * 10 + 5; this.gravity = 0.3; this.rot = Math.random();
+                }
+            }
+            update() {
+                this.x += this.vx; this.y += this.vy;
+                if(this.type === 'splash' || this.type === 'wood') this.vy += this.gravity;
+                if(this.type !== 'rain') this.life -= this.decay;
+                if(this.type === 'star' || this.type === 'wood') this.rot += this.rotSpeed || 0.1;
+                
+                if(this.type === 'rain' && this.y > canvas.height) {
+                    this.y = -10; this.x = Math.random() * canvas.width;
+                }
+            }
+            draw(ctx) {
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, this.life);
+                ctx.translate(this.x, this.y);
+                if(this.type === 'rain') {
+                    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+                    ctx.fillRect(0, 0, this.size, this.size * 5);
+                } else if (this.type === 'star') {
+                    ctx.rotate(this.rot); ctx.fillStyle = '#fbc531';
+                    ctx.beginPath();
+                    for(let i=0; i<5; i++) {
+                        ctx.lineTo(Math.cos((18+i*72)/180*Math.PI)*this.size, -Math.sin((18+i*72)/180*Math.PI)*this.size);
+                        ctx.lineTo(Math.cos((54+i*72)/180*Math.PI)*this.size*0.4, -Math.sin((54+i*72)/180*Math.PI)*this.size*0.4);
+                    }
+                    ctx.closePath(); ctx.fill();
+                } else if (this.type === 'splash') {
+                    ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(0,0,this.size,0,Math.PI*2); ctx.fill();
+                } else if (this.type === 'wood') {
+                    ctx.rotate(this.rot); ctx.fillStyle = '#8B4513'; ctx.fillRect(-this.size/2, -this.size/4, this.size, this.size/2);
+                }
+                ctx.restore();
+            }
+        }
+
+        // Initial rain
+        for(let i=0; i<30; i++) particles.push(new Particle(Math.random()*canvas.width, Math.random()*canvas.height, 'rain'));
+
+        function spawnFX(x, y, type, count) {
+            for(let i=0; i<count; i++) particles.push(new Particle(x, y, type));
+        }
+
+        function animateCanvas() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.update(); p.draw(ctx);
+                if (p.life <= 0) particles.splice(i, 1);
+            }
+            requestAnimationFrame(animateCanvas);
+        }
+        animateCanvas();
+
+
+        // --- GAME LOGIC ---
+
+        class Player {
+            constructor(id, colorClass, name) {
+                this.id = id;
+                this.name = name;
+                this.colorClass = colorClass;
+                this.score = 0;
+                this.combo = 0;
+                this.timer = 20;
+                this.currentQuestion = null;
+                this.interval = null;
+                this.boardEl = null;
+                this.isAnimating = false;
+            }
+
+            renderBoard(container) {
+                const html = `
+                    <div class="player-board" id="board-${this.id}">
+                        <div class="board-header">
+                            <span class="badge ${this.colorClass}">${this.name}</span>
+                            <div class="stats-area">
+                                <div>⭐ <span id="score-${this.id}" class="score-box">0</span></div>
+                                <div>⏱️ <span id="timer-${this.id}" class="timer-box">20</span></div>
+                                <div id="combo-${this.id}" class="combo-box">🔥 Combo x3</div>
+                            </div>
+                        </div>
+                        <div class="question-area">
+                            <div id="qtext-${this.id}" class="question-text">?</div>
+                        </div>
+                        <div class="sea-area">
+                            <div class="waves"></div>
+                            <div class="boat-container" id="boat-${this.id}">
+                                <div class="fisherman">🧑‍🌾</div>
+                                <div class="boat">🛶</div>
+                            </div>
+                            <div class="fishing-line" id="line-${this.id}"></div>
+                            <div class="fish-grid" id="fishes-${this.id}"></div>
+                            <div id="popup-${this.id}" class="popup-text" style="color:var(--correct); left:50%; top:50%; transform:translate(-50%,-50%);">Benar!</div>
+                        </div>
+                    </div>
+                `;
+                container.insertAdjacentHTML('beforeend', html);
+                this.boardEl = $(`board-${this.id}`);
+            }
+
+            generateQuestion() {
+                let max = globalLevel === 1 ? 10 : (globalLevel === 2 ? 15 : 20);
+                let isAdd = Math.random() > 0.5;
+                let a, b, ans;
+
+                if (isAdd) {
+                    ans = Math.floor(Math.random() * max) + 1;
+                    a = Math.floor(Math.random() * ans);
+                    b = ans - a;
+                } else {
+                    a = Math.floor(Math.random() * max) + 1;
+                    b = Math.floor(Math.random() * a);
+                    ans = a - b;
+                }
+
+                let options = [ans];
+                while(options.length < 4) {
+                    let fake = ans + (Math.floor(Math.random() * 9) - 4); // -4 to +4
+                    if (fake >= 0 && !options.includes(fake)) {
+                        options.push(fake);
+                    }
+                }
+                // Shuffle
+                options.sort(() => Math.random() - 0.5);
+
+                this.currentQuestion = { q: `${a} ${isAdd?'+':'-'} ${b} = ?`, ans: ans, options: options };
+            }
+
+            displayQuestion() {
+                if(!this.boardEl) return;
+                $(`qtext-${this.id}`).innerText = this.currentQuestion.q;
+                
+                const fishContainer = $(`fishes-${this.id}`);
+                fishContainer.innerHTML = '';
+                const fishEmojis = ['🐟', '🐠', '🐡', '🐋'];
+                
+                this.currentQuestion.options.forEach((opt, idx) => {
+                    const btn = document.createElement('button');
+                    btn.className = 'fish-btn';
+                    btn.style.setProperty('--delay', idx * 0.2);
+                    btn.innerHTML = `
+                        <div class="fish-icon">${fishEmojis[idx % fishEmojis.length]}</div>
+                        <div class="fish-number">${opt}</div>
+                    `;
+                    btn.onclick = (e) => this.checkAnswer(opt, btn, e);
+                    fishContainer.appendChild(btn);
+                });
+
+                this.timer = 20;
+                this.updateTimerUI();
+                this.startTimer();
+                this.isAnimating = false;
+                $(`line-${this.id}`).style.width = '0'; // reset line
+            }
+
+            startTimer() {
+                clearInterval(this.interval);
+                this.interval = setInterval(() => {
+                    this.timer--;
+                    this.updateTimerUI();
+                    if(this.timer <= 0) {
+                        clearInterval(this.interval);
+                        this.handleTimeOut();
+                    }
+                }, 1000);
+            }
+
+            updateTimerUI() {
+                $(`timer-${this.id}`).innerText = this.timer;
+                if(this.timer <= 5) $(`timer-${this.id}`).style.animation = 'pulse 0.5s infinite';
+                else $(`timer-${this.id}`).style.animation = 'none';
+            }
+
+            showPopup(text, isCorrect, x, y) {
+                const pop = $(`popup-${this.id}`);
+                pop.innerText = text;
+                pop.style.color = isCorrect ? 'var(--correct)' : 'var(--wrong)';
+                pop.style.left = (x || '50%');
+                pop.style.top = (y || '50%');
+                pop.classList.remove('anim-pop-up');
+                void pop.offsetWidth; // trigger reflow
+                pop.classList.add('anim-pop-up');
+            }
+
+            drawFishingLine(fishEl, isCorrect, cb) {
+                this.isAnimating = true;
+                playSound('throw');
+                
+                const boat = $(`boat-${this.id}`);
+                const line = $(`line-${this.id}`);
+                
+                // Get relative positions inside sea-area
+                const seaRect = this.boardEl.querySelector('.sea-area').getBoundingClientRect();
+                const boatRect = boat.getBoundingClientRect();
+                const fishRect = fishEl.getBoundingClientRect();
+
+                const startX = boatRect.left - seaRect.left + (boatRect.width / 2);
+                const startY = boatRect.top - seaRect.top + (boatRect.height / 2);
+                const endX = fishRect.left - seaRect.left + (fishRect.width / 2);
+                const endY = fishRect.top - seaRect.top + (fishRect.height / 2);
+
+                const length = Math.sqrt(Math.pow(endX - startX, 2) + Math.pow(endY - startY, 2));
+                const angle = Math.atan2(endY - startY, endX - startX) * 180 / Math.PI;
+
+                line.style.left = `${startX}px`;
+                line.style.top = `${startY}px`;
+                line.style.transform = `rotate(${angle}deg)`;
+                line.style.width = `${length}px`;
+
+                setTimeout(() => {
+                    // Global coordinates for particles
+                    const globalX = fishRect.left + fishRect.width/2;
+                    const globalY = fishRect.top + fishRect.height/2;
+
+                    if(isCorrect) {
+                        playSound('correct');
+                        playSound('splash');
+                        spawnFX(globalX, globalY, 'star', 15);
+                        spawnFX(globalX, globalY, 'splash', 20);
+                        fishEl.style.transform = 'scale(1.5) rotate(360deg)';
+                        fishEl.style.transition = 'all 0.5s';
+                        fishEl.style.opacity = '0';
+                    } else {
+                        playSound('crack');
+                        spawnFX(globalX, globalY, 'splash', 10);
+                        spawnFX(globalX, globalY, 'wood', 5);
+                        line.style.width = '0'; // break line
+                    }
+                    setTimeout(cb, 800);
+                }, 300); // sync with css line transition
+            }
+
+            checkAnswer(selectedAns, fishEl, event) {
+                if(this.isAnimating) return;
+                clearInterval(this.interval);
+
+                const isCorrect = selectedAns === this.currentQuestion.ans;
+                
+                this.drawFishingLine(fishEl, isCorrect, () => {
+                    if (isCorrect) {
+                        this.combo++;
+                        let points = 10;
+                        if(this.combo >= 3) {
+                            points += 20;
+                            $(`combo-${this.id}`).classList.add('combo-active');
+                            this.showPopup("COMBO +20!", true, '50%', '30%');
+                        }
+                        this.score += points;
+                        $(`score-${this.id}`).innerText = this.score;
+                        this.showPopup("Hebat!", true, '50%', '50%');
+                        
+                        setTimeout(() => this.nextQuestion(), 1000);
+                    } else {
+                        this.combo = 0;
+                        $(`combo-${this.id}`).classList.remove('combo-active');
+                        this.showPopup("Ups Salah!", false, '50%', '50%');
+                        // Let them try again, reset line, start timer again
+                        this.isAnimating = false;
+                        this.startTimer();
+                    }
+                });
+            }
+
+            handleTimeOut() {
+                this.combo = 0;
+                $(`combo-${this.id}`).classList.remove('combo-active');
+                this.showPopup("Waktu Habis!", false, '50%', '50%');
+                playSound('wrong');
+                setTimeout(() => this.nextQuestion(), 1000);
+            }
+
+            nextQuestion() {
+                this.generateQuestion();
+                this.displayQuestion();
+                playSound('pop');
+            }
+
+            start() {
+                this.score = 0;
+                this.combo = 0;
+                this.generateQuestion();
+                this.displayQuestion();
+            }
+            
+            stop() {
+                clearInterval(this.interval);
+            }
+        }
+
+        // --- NAVIGATION & GAME MANAGER ---
+
+        function startGame(mode) {
+            initAudio(); // required for browser autoplay policy
+            playSound('pop');
+            gameMode = mode;
+            const container = $('game-container');
+            container.innerHTML = '';
+            container.className = `game-container layout-${mode}`;
+            
+            // Stop old players
+            players.forEach(p => p.stop());
+            players = [];
+
+            if (mode === 'solo') {
+                players.push(new Player(1, 'p1-color', 'Player 1'));
+            } else if (mode === 'duel') {
+                players.push(new Player(1, 'p1-color', 'Player 1'));
+                players.push(new Player(2, 'p2-color', 'Player 2'));
+            } else if (mode === 'squad') {
+                players.push(new Player(1, 'p1-color', 'P1'));
+                players.push(new Player(2, 'p2-color', 'P2'));
+                players.push(new Player(3, 'p3-color', 'P3'));
+                players.push(new Player(4, 'p4-color', 'P4'));
+            }
+
+            players.forEach(p => {
+                p.renderBoard(container);
+                p.start();
+            });
+
+            // Transition
+            $('home-screen').classList.remove('active-screen');
+            $('home-screen').classList.add('hidden');
+            setTimeout(() => {
+                $('game-screen').classList.remove('hidden');
+                $('game-screen').classList.add('active-screen');
+                $('btn-back-home').classList.remove('hidden');
+            }, 50);
+        }
+
+        function goHome() {
+            playSound('pop');
+            players.forEach(p => p.stop());
+            
+            $('game-screen').classList.remove('active-screen');
+            $('game-screen').classList.add('hidden');
+            $('btn-back-home').classList.add('hidden');
+            setTimeout(() => {
+                $('home-screen').classList.remove('hidden');
+                $('home-screen').classList.add('active-screen');
+            }, 50);
+        }
+
+    </script>
+</body>
+</html>
